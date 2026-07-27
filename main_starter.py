@@ -5,7 +5,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime, timedelta, timezone
-from db import get_articles, get_article_by_id, count_articles
+from db import count_articles_by_source, get_articles, get_article_by_id, count_articles
 import hmac
 from pydantic_settings import BaseSettings, SettingsConfigDict
 import jwt as pyjwt
@@ -45,6 +45,14 @@ class Article(BaseModel):
     content: Optional[str] = None
     published_at: Optional[datetime] = None
     scraped_at: Optional[datetime] = None
+
+class SourceArticleCount(BaseModel):
+    source: str
+    total: int
+
+class ArticleCountResponse(BaseModel):
+    total_articles: int
+    details_by_source: List[SourceArticleCount]
 
 class TokenRequest(BaseModel):
     """Request body untuk endpoint /token"""
@@ -140,5 +148,45 @@ def get_article(
     return article
 
 # Buat endpoint artivles meneima query  parameter 1, source, 2 title, 3 limit
+@app.get(
+    "/search_articles",
+    response_model=List[Article],
+    tags=["Articles"],
+)
+def search_articles(
+    source: Optional[str] = Query(
+        None,
+        description="Filter by source",
+    ),
+    title: Optional[str] = Query(
+        None,
+        description="Filter by title",
+    ),
+    limit: int = Query(
+        20,
+        ge=1,
+        le=100,
+        description="Maximum number of articles",
+    ),
+    auth=Depends(get_current_client),
+):
+    return get_articles(
+        source=source,
+        title=title,
+        limit=limit,
+    )
 
-# Buat endpoint untuk mendapatkan total article 
+@app.get(
+    "/total_articles",
+    response_model=ArticleCountResponse,
+    tags=["Articles"],
+)
+def get_total_articles():
+    total = count_articles()
+    details = count_articles_by_source()
+
+    return {
+        "total_articles": total,
+        "details_by_source": details,
+    }
+

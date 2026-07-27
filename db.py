@@ -89,24 +89,64 @@ def save_articles(df: pd.DataFrame) -> int:
     return inserted
 
 
+# def get_articles(
+#     source: Optional[str] = None,
+#     limit: int = 20,
+# ) -> List[Dict]:
+#     query = f"SELECT * FROM {TABLE_NAME}"
+#     params: dict = {}
+
+#     if source:
+#         query += " WHERE source = :source"
+#         params["source"] = source.lower()
+
+#     if title:
+#         query += " AND title ILIKE :title"
+#         params["title"] = f"%{title}%"
+
+#     query += " ORDER BY published_at DESC NULLS LAST LIMIT :limit"
+#     params["limit"] = limit
+
+#     with engine.connect() as conn:
+#         rows = conn.execute(text(query), params).mappings().all()
+
+#     return [dict(r) for r in rows]
+
 def get_articles(
     source: Optional[str] = None,
+    title: Optional[str] = None,
     limit: int = 20,
 ) -> List[Dict]:
     query = f"SELECT * FROM {TABLE_NAME}"
-    params: dict = {}
+
+    conditions = []
+    params:dict = {}
 
     if source:
-        query += " WHERE source = :source"
-        params["source"] = source.lower()
+        conditions.append("LOWER(source) = LOWER(:source)")
+        params["source"] = source
 
-    query += " ORDER BY published_at DESC NULLS LAST LIMIT :limit"
+    if title:
+        conditions.append("title ILIKE :title")
+        params["title"] = f"%{title}%"
+
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
+
+    query += """
+        ORDER BY published_at DESC NULLS LAST
+        LIMIT :limit
+    """
+
     params["limit"] = limit
 
     with engine.connect() as conn:
-        rows = conn.execute(text(query), params).mappings().all()
+        rows = conn.execute(
+            text(query),
+            params,
+        ).mappings().all()
 
-    return [dict(r) for r in rows]
+    return [dict(row) for row in rows]
 
 
 def get_article_by_id(article_id: int) -> Optional[Dict]:
@@ -121,10 +161,26 @@ def get_article_by_id(article_id: int) -> Optional[Dict]:
 
 
 def count_articles() -> int:
-    """Hitung total articles di database."""
+    """Hitung total artikel di database."""
     with engine.connect() as conn:
-        row = conn.execute(text(f"SELECT COUNT(*) FROM {TABLE_NAME}")).fetchone()
-    return row[0] if row else 0
+        total = conn.execute(
+            text(f"SELECT COUNT(*) FROM {TABLE_NAME}")
+        ).scalar_one()
 
-     # Moni project = Tambahkan query unuk panggilan API
-     # GET julah total artikel
+    return total
+
+def count_articles_by_source() -> List[Dict]:
+    """Hitung jumlah artikel berdasarkan source."""
+    query = text(f"""
+        SELECT
+            source,
+            COUNT(*) AS total
+        FROM {TABLE_NAME}
+        GROUP BY source
+        ORDER BY total DESC
+    """)
+
+    with engine.connect() as conn:
+        rows = conn.execute(query).mappings().all()
+
+    return [dict(row) for row in rows]
