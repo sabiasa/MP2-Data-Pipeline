@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+pandas
+requests
+beautifulsoup4
+selenium
+sqlalchemy
+psycopg2-binary
+python-dotenv
+pydantic-settings
+PyJWT
+lxml
